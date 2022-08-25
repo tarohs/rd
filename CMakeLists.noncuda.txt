@@ -1,0 +1,146 @@
+cmake_minimum_required(VERSION 2.8)
+
+set(CMAKE_BUILD_TYPE Debug)
+find_package(PkgConfig REQUIRED)
+  
+#------------------------------------------------------------------------
+if (OPENCV)
+#  find_package(OpenCV REQUIRED)
+  pkg_check_modules(OPENCV REQUIRED opencv)
+endif()
+
+if (SDL OR SDLAUDIO)
+#  find_package(SDL2 REQUIRED)
+  pkg_check_modules(SDL2 REQUIRED sdl2)
+endif()
+
+if (OPENGL)
+#  find_package(GL REQUIRED)
+  pkg_check_modules(GL REQUIRED gl)
+endif()
+
+if (CUDA6.5 OR CUDA8.0)
+  find_package(CUDA REQUIRED)
+  if (CUDA6.5)
+    pkg_check_modules(CUDA REQUIRED cuda-6.5)
+  elseif (CUDA8.0)
+    pkg_check_modules(CUDA REQUIRED cuda-8.0)
+  endif()
+endif()
+
+#------------------------------------------------------------------------
+#set(CUDA_NVCC_FLAGS -gencode arch=comput_20,code=sm_20;--std=c++11)
+set(CUDA_NVCC_FLAGS --std=c++11)
+
+if (CUDA6.5)
+  set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -DCUDA -use_fast_math")
+elseif (CUDA8.0)
+  set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -DCUDA -use_fast_math")
+endif()
+if (OPENCV)
+  set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -DUSECV")
+endif()
+if (SDL)
+  set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -DUSESDL")
+endif()
+
+message("CUDA_NVCC_FLAGS: ${CUDA_NVCC_FLAGS}")
+#------------------------------------------------------------------------
+if (OPENCV)
+  include_directories(${OPENCV_INCLUDE_DIRS})
+  link_directories(${OPENCV_LIBRARY_DIRS})
+endif()
+
+if (SDL OR SDLAUDIO)
+  include_directories(${SDL2_INCLUDE_DIRS})
+  link_directories(${SDL2_LIBRARY_DIRS})
+  set(SDL2_LIBRARIES "${SDL2_LIBRARIES} -lSDL2_ttf")
+#  set(SDL2_LIBRARIES "${SDL2_LIBRARIES} -L/usr/local/lib -ldrm_rockchip")
+endif()
+
+if (CUDA6.5 OR CUDA8.0)
+  if (CUDA6.5)
+    link_directories("/usr/local/cuda/lib")
+    include_directories("/usr/local/cuda/include")
+  elseif (CUDA8.0)
+    link_directories("/usr/local/cuda-8.0/lib")
+    include_directories("/usr/local/cuda-8.0/include")
+  endif()
+endif()
+
+#------------------------------------------------------------------------
+set(CMAKE_CXX_FLAGS "-Wall -O3 -g -pthread")
+
+if (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 4.7)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+endif()
+
+
+if(I386)
+elseif(ARM OR ARMV6)
+  if(ARMV6)
+#    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mcpu=arm1176jzf-s -mfpu=vfp -mfloat-abi=hard")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=armv6")
+  else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNEON")
+    if (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 6.0)
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfpu=neon")
+    endif()
+  endif()
+endif()
+
+if (OPENCV)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSECV")
+endif()
+if (SDL)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSESDL")
+endif()
+if (SDLAUDIO)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DSDLAUDIO")
+endif()
+
+message("CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
+
+#------------------------------------------------------------------------
+set(sources rd_gray_scott.cc reaction.cc conlife.cc)
+if (OPENCV)
+  set(sources ${sources} cvdraw.cc)
+endif()
+if (SDL)
+  set(sources ${sources} sdldraw.cc)
+endif()
+if (SDLAUDIO)
+  set(sources ${sources} sdlaudio.cc)
+endif()
+
+if (CUDA6.5 OR CUDA8.0)
+  set(sources ${sources} cudaiter.cu)
+else()
+  set(sources ${sources} iter.cc)
+endif()
+
+#------------------------------------------------------------------------
+if (CUDA6.5 OR CUDA8.0)
+#  CUDA_ADD_LIBRARY(cuda_obj STATIC cudaiter.cu)
+  cuda_add_executable(rd_gray_scott "${sources}")
+else ()
+  add_executable(rd_gray_scott "${sources}")
+endif()
+
+#------------------------------------------------------------------------
+if (OPENCV)
+  if (SDLAUDIO)
+    target_link_libraries(rd_gray_scott ${OPENCV_LIBRARIES} ${SDL2_LIBRARIES})
+  else()
+    target_link_libraries(rd_gray_scott ${OPENCV_LIBRARIES})
+  endif()
+endif()
+if (SDL)
+  target_link_libraries(rd_gray_scott ${SDL2_LIBRARIES})
+endif()
+if (CUDA6.5 OR CUDA8.0)
+#  target_link_libraries(rd_gray_scott ${CUDA_LIBRARIES})
+#  target_link_libraries(rd_gray_scott cuda_obj)
+endif()
+
+#message(STATUS "${LIBS} ${OPENCV_LIBRARIES} ${SDL2_LIBRARY_DIRS}")
